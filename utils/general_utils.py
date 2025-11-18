@@ -73,7 +73,8 @@ def strip_symmetric(sym):
 
 
 def build_rotation(r):
-    """从四元数到旋转矩阵的转换"""
+    """从四元数到旋转矩阵的转换
+    r:四元素,形状应为[N, 4],输出形状为[N, 3, 3]"""
     norm = torch.sqrt(r[:,0]*r[:,0] + r[:,1]*r[:,1] + 
                       r[:,2]*r[:,2] + r[:,3]*r[:,3])
     q = r / norm[:, None]
@@ -97,4 +98,32 @@ def build_rotation(r):
 
 def build_scaling_rotation(s, r):
     """构建缩放旋转矩阵"""
-    
+    L = torch.zeros((s.shape[0], 3, 3), dtype=torch.float, device='cuda')
+    R = build_rotation(r)
+
+    L[:, 0, 0] = s[:, 0]
+    L[:, 1, 1] = s[:, 1]
+    L[:, 2, 2] = s[:, 2]
+    L = R @ L
+    return L
+
+
+def safe_state(silent):
+    """创建一个可控制输出且固定随机种子的环境
+    灵活控制输出是否显示,并为带换行的输出添加时间戳,便于日志追踪"""
+    old_f = sys.stdout
+    class F:
+        def __init__(self, silent):
+            self.silent = silent
+        def write(self, x):
+            if not self.silent:
+                if x.endswith("\n"):
+                    old_f.write(x.replace('\n', f'[{datetime.now().strftime("%d/%m %H:%M:%S")}]\n'))
+                else: old_f.write(x)
+        def flush(self):
+            old_f.flush()
+    sys.stdout = F(silent)
+    random.seed(0)
+    np.random.seed(0)
+    torch.manual_seed(0)
+    torch.cuda.set_device(torch.device("cuda:0"))
