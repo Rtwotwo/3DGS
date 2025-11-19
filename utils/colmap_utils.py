@@ -18,11 +18,11 @@ def VideotoFrames(video_path:str, output_path:str, skip_frames:int=1)->None:
     assert skip_frames>0, f"视频抽帧skip_frames参数必须大于0!"
     video_cap = cv2.VideoCapture(video_path)
     count_num = 0
+    os.makedirs(output_path, exist_ok=True)
     while video_cap.isOpened():
         ret, frame = video_cap.read()
         if ret:
             if count_num % skip_frames==0:
-                os.makedirs(output_path, exist_ok=True)
                 file_path = os.path.join(output_path, f"{count_num//skip_frames}.jpg")
                 cv2.imwrite(file_path, frame)
                 print(f"已保存图片至{file_path}")
@@ -79,15 +79,15 @@ def PycolmapSFM(images_dir:str, database_path:str, output_path:str, dense_path:s
 def main():
     # 创建参数解析器
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", type=str, default="./data/controller.mp4", help="Video path")
-    parser.add_argument("--skip_frames", type=int, default=20, help="Skip frames")
+    parser.add_argument("--video_path", type=str, default="./data/bedtable.mp4", help="Video path")
+    parser.add_argument("--skip_frames", type=int, default=10, help="Skip frames")
     parser.add_argument("--frames_path", type=str,  default="./logs/frames", help="Output path")
     parser.add_argument("--points_path", type=str, default="./logs/points", help="Output path")
     parser.add_argument("--dense_path", type=str, default="./logs/dense", help="Output path")
     parser.add_argument("--database_path", type=str, default="./logs/database.db", help="Database path")
     args = parser.parse_args()
     # 进行pycolmap三维重建任务
-    # VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
+    VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
     PycolmapSFM(images_dir=args.frames_path, database_path=args.database_path, dense_path=args.dense_path, output_path=args.points_path)
 
 
