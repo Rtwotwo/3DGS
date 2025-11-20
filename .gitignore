@@ -4,8 +4,5 @@ papers/
 # ignore data folder
 data/
 
-# ignore ply folder
-ply/
-
 # ignore the dense folder of logs folder
-logs/dense/
+logs/

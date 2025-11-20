@@ -6,26 +6,26 @@ The 3DRepo repository is mainly used to reproduce currently cutting-edge 3D reco
 
 We choose the Nerf-Synthetic and Mip-360 dataset to train the 3D Gaussian Splatting, 2D Gassian Splatting, Gaussian Opacity Fields, Mip-Splatting, Analytic-Splatting and 3DGRUT algorithms and make Single-Train-Single-Test(STST), Single-Train-Multiple-Test(STMT) experiments to get metrics about PSNR, SSIM, LPIPS to compare the performance of algorithms. The detailed results of these experiments are as follows:
 
-## :mag: Colmap Tool :mag:
+## :mag: 2.Colmap Tool :mag:
 
-Colmap是先通过 SfM 恢复稀疏三维结构与相机位姿，再利用 MVS 把稀疏点稠密化，最终输出稠密点云或网格。总体上而言，colmap整条链路 CPU/GPU 混合加速，​精度高、鲁棒、开源，所以成为学术与工业界的“离线重建基准线”。在linux(以Ubuntu22.04为例)安装colmap的GPU的具体流程如下：
+Colmap first reconstructs the sparse 3D structure and camera poses through SfM, then uses MVS to densify the sparse points, and finally outputs a dense point cloud or mesh. Overall, Colmap's entire pipeline is accelerated by a CPU/GPU hybrid, with high precision, robustness, and open-source availability, making it the "offline reconstruction baseline" in academia and industry. The specific process for installing the GPU version of Colmap on Linux (taking Ubuntu 22.04 as an example) is as follows:
 
 ```bash
-# 装好编译依赖
+# Install the compilation dependencies
 sudo apt update
 sudo apt install -y gcc-11 g++-11
 git clone https://github.com/colmap/colmap.git
 cd colmap
 
-# 如果遇到PoseLib编译问题，需要手动下载PoseLib源码包
+#If you encounter compilation issues with PoseLib, you need to manually download the PoseLib source code package.
 cd ~/colmap
 wget https://github.com/PoseLib/PoseLib/archive/f119951fca625133112acde48daffa5f20eba451.zip
-# 解压到 CMake 期望的目录
+# Unzip to the diectional floder
 unzip -q f119951fca625133112acde48daffa5f20eba451.zip
 mv PoseLib-f119951fca625133112acde48daffa5f20eba451 \
    build/_deps/poselib-src
 
-# 重新触发 CMake
+# Rebuild and trigger CMake
 cd build
 cmake .. -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
@@ -35,7 +35,7 @@ cmake .. -GNinja \
   -DCMAKE_C_COMPILER=gcc-11 \
   -DCMAKE_CXX_COMPILER=g++-11
 
-# 继续编译
+# Continuing to compilation
 ninja -j4
 sudo ninja install
 colmap patch_match_stereo --help | grep gpu

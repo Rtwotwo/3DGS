@@ -32,9 +32,8 @@ def VideotoFrames(video_path:str, output_path:str, skip_frames:int=1)->None:
     video_cap.release()
     
 
-def PycolmapSFM(images_dir:str, database_path:str, output_path:str, dense_path:str=None,
-                camera_model:str="SIMPLE_PINHOLE", fx:float=None, cx:float=None, 
-                fy:float=None, cy:float=None)->None:
+def PycolmapSFM(args, images_dir:str, database_path:str, points_path:str, dense_path:str=None,
+                camera_model:str="SIMPLE_PINHOLE")->None:
     """运行pycolmap的SFM重建系数稀疏点云数据
     images_dir: 抽帧后保存图片文件夹位置, camera_model:相机模型参数
     database_path: 数据库文件位置,由用户决定其名称,后缀格式为.db
@@ -43,19 +42,19 @@ def PycolmapSFM(images_dir:str, database_path:str, output_path:str, dense_path:s
                               image_path=images_dir,
                               camera_model=camera_model)
     # 进行特征匹配并使用增量式SFM
-    os.makedirs(output_path, exist_ok=True)
+    os.makedirs(points_path, exist_ok=True)
     pycolmap.match_exhaustive(database_path=database_path)
     reconstruction = pycolmap.incremental_mapping(
                     database_path=database_path,
                     image_path=images_dir,
-                    output_path=output_path)
-    print(f"SFM稀疏点云重建任务已完成,点云数据保存在{output_path}!")
+                    output_path=points_path)
+    print(f"SFM稀疏点云重建任务已完成,点云数据保存在{points_path}!")
     # 进行稠密重建以获得点云数据.ply
     os.makedirs(dense_path, exist_ok=True)
     cmd_undistort = [
         "colmap", "image_undistorter",
         "--image_path", images_dir,
-        "--input_path", os.path.join(output_path, "0"),
+        "--input_path", os.path.join(points_path, "0"),
         "--output_path", dense_path,
         "--output_type", "COLMAP"]
     print(f"Running: {' '.join(cmd_undistort)}")
@@ -67,8 +66,9 @@ def PycolmapSFM(images_dir:str, database_path:str, output_path:str, dense_path:s
         "--PatchMatchStereo.max_image_size", "2000"]
     print(f"Running: {' '.join(cmd1)}")
     result1 = subprocess.run(cmd1, capture_output=True, text=True, env=ENV)
-    # 生成.ply点云数据
-    fused_ply = os.path.join(dense_path, "fused.ply")
+    # 创建点云存储路径,生成.ply点云数据
+    plyname = os.path.basename(args.video_path).split(".")[0] + ".ply"
+    fused_ply = os.path.join(dense_path, plyname)
     cmd2 = ["colmap", "stereo_fusion",
         "--workspace_path", dense_path,
         "--output_path", fused_ply]
@@ -79,8 +79,8 @@ def PycolmapSFM(images_dir:str, database_path:str, output_path:str, dense_path:s
 def main():
     # 创建参数解析器
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", type=str, default="./data/bedtable.mp4", help="Video path")
-    parser.add_argument("--skip_frames", type=int, default=10, help="Skip frames")
+    parser.add_argument("--video_path", type=str, default="./data/controller.mp4", help="Video path")
+    parser.add_argument("--skip_frames", type=int, default=20, help="Skip frames")
     parser.add_argument("--frames_path", type=str,  default="./logs/frames", help="Output path")
     parser.add_argument("--points_path", type=str, default="./logs/points", help="Output path")
     parser.add_argument("--dense_path", type=str, default="./logs/dense", help="Output path")
@@ -88,7 +88,7 @@ def main():
     args = parser.parse_args()
     # 进行pycolmap三维重建任务
     VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
-    PycolmapSFM(images_dir=args.frames_path, database_path=args.database_path, dense_path=args.dense_path, output_path=args.points_path)
+    PycolmapSFM(args, images_dir=args.frames_path, database_path=args.database_path, dense_path=args.dense_path, points_path=args.points_path)
 
 
 if __name__ == "__main__":
