@@ -26,6 +26,7 @@ def PILtoTorch(pil_image: Image.Image,
                )->torch.Tensor:
     """将PIL格式的图像转换为PyTorch张量"""
     resized_pil_image = pil_image.resize(resolution)
+    # 图像归一化后续计算PSNR的公式需要使用MAX(最大灰度级256)
     resized_image = torch.from_numpy(np.array(resized_pil_image)) / 255.0
     if len(resized_image.shape) == 3:
         return resized_image.permute(2, 0, 1)
