@@ -10,3 +10,9 @@
 [submodule "submodules/colmap"]
 	path = submodules/colmap
 	url = https://github.com/colmap/colmap.git
+[submodule "clone/vggt"]
+	path = clone/vggt
+	url = https://github.com/facebookresearch/vggt.git
+[submodule "clone/SegmentAnything3D"]
+	path = clone/SegmentAnything3D
+	url = https://github.com/Pointcept/SegmentAnything3D.git
