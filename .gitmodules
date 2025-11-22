@@ -16,3 +16,9 @@
 [submodule "clone/SegmentAnything3D"]
 	path = clone/SegmentAnything3D
 	url = https://github.com/Pointcept/SegmentAnything3D.git
+[submodule "clone/Scaffold-GS"]
+	path = clone/Scaffold-GS
+	url = https://github.com/city-super/Scaffold-GS.git
+[submodule "clone/3dgs-mcmc"]
+	path = clone/3dgs-mcmc
+	url = https://github.com/ubc-vision/3dgs-mcmc.git
