@@ -54,9 +54,46 @@ class Camera(nn.Module):
         self.image_height = self.originla_image.shape[1]
         # 处理逆深度图invdepthmap的加载,预处理与可靠性校验
         if invdepthmap is not None:
-            
+            self.depth_mask = torch.ones_like(self.alpha_mask)
+            self.invdepthmap = cv2.resize(invdepthmap, resolution)
+            self.invdepthmap[self.invdepthmap<0] = 0 # 生成逆深度图
+            self.depth_reliable = True
+            if depth_params is not None:
+                # 校验缩放系数scale是否在合理范围0.2~5倍中位数缩放系数med_scale
+                if depth_params['scale']<0.2*depth_params['med_scale'] or \
+                    depth_params['scale']>5*depth_params['med_scale']:
+                    self.depth_reliable = False
+                    self.depth_mask = None
+                # 对逆深度图进行线性变换-缩放+偏移
+                if depth_params['scale'] > 0:
+                    self.invdepthmap = self.invdepthmap*depth_params['scale'] + depth_params['offset']
+            # invdepthmap类型np.narray[H,W,C]->torch.Tensor[C,H,W]
+            if self.invdepthmap.ndim != 2:
+                self.invdepthmap = self.invdepthmap[..., 0]
+            self.invdepthmap = torch.from_numpy(self.invdepthmap[None]).to(self.data_device)
+        # 计算相机-世界转换矩阵
+        self.znear = 0.01
+        self.zfar = 100.0
+        self.trans = trans
+        self.scale = scale
+        self.world_view_transform = torch.tensor(getWorld2View2(R, T, trans, scale)).transpose(0, 1).cuda()
+        self.projection_matrix = getProjectionMatrix(znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy).transpose(0, 1).cuda()
+        self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0)) ).squeeze(0) # 批量乘法bmm
+        self.camera_center = self.world_view_transform.inverse()[3, :3]
 
 
-
-
-
+class MiniCam:
+    """PyTorch 环境下的迷你相机类MiniCam,
+    核心用于存储相机参数并计算相机在3D世界中的位置"""
+    def __init__(self, width, height, fovy, fovx, znear, zfar, 
+                 world_view_transform, full_proj_transform):
+        self.image_height = height
+        self.image_width = width
+        self.fovy = fovy
+        self.fovx = fovx
+        self.znear = znear
+        self.zfar = zfar
+        self.world_view_transform = world_view_transform
+        self.full_proj_transform = full_proj_transform
+        view_inv = torch.inverse(self.world_view_transform)
+        self.camera_center = view_inv[3][:3]
