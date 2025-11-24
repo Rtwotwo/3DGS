@@ -22,3 +22,6 @@
 [submodule "clone/3dgs-mcmc"]
 	path = clone/3dgs-mcmc
 	url = https://github.com/ubc-vision/3dgs-mcmc.git
+[submodule "clone/GaussianArt"]
+	path = clone/GaussianArt
+	url = https://github.com/shenlc19/GaussianArt.git
