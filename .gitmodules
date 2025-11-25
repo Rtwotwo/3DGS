@@ -1,15 +1,17 @@
-[submodule "diff-gaussian-rasterization"]
+[submodule "submodules/diff-gaussian-rasterization"]
 	path = diff-gaussian-rasterization
 	url = https://github.com/graphdeco-inria/diff-gaussian-rasterization
-[submodule "simple-knn"]
+[submodule "submodules/simple-knn"]
 	path = simple-knn
 	url = https://github.com/camenduru/simple-knn
-[submodule "tetra-triangulation"]
+[submodule "submodules/tetra-triangulation"]
 	path = tetra-triangulation
 	url = https://github.com/jkulhanek/tetra-nerf
 [submodule "submodules/colmap"]
 	path = submodules/colmap
 	url = https://github.com/colmap/colmap.git
+
+
 [submodule "clone/vggt"]
 	path = clone/vggt
 	url = https://github.com/facebookresearch/vggt.git
