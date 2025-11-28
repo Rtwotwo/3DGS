@@ -215,4 +215,13 @@ class GaussianModel:
                                                          max_steps=training_args.iterations)
     def update_learning_rate(self, iteration):
         """学习率随着每步更新"""
-
+        if self.pretrained_exposures is None:
+            for param_group in self.exposure_optimizer.param_groups:
+                param_group['lr'] = self.exposure_scheduler_args(iteration)
+        # 更新主优化器中"xyz"参数的学习率
+        for param_group in self.optimizer.param_groups:
+            if param_group['name'] == 'xyz':
+                lr = self.xyz_scheduler_args(iteration)
+                param_group['lr'] = lr
+                return lr
+            
