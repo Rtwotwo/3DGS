@@ -20,7 +20,7 @@ from utils.general_utils import inverse_sigmoid, get_expon_lr_func, build_rotati
 
 class GaussianModel:
     def setup_functions(self):
-        def build_covariance_from_scaling_rotation(self, scaling_modifier, rotation):
+        def build_covariance_from_scaling_rotation(scaling, scaling_modifier, rotation):
             """过缩放和旋转参数构建3D高斯分布的协方差矩阵"""
             L = build_scaling_rotation(scaling_modifier, rotation)
             actual_covariance = L @ L.T
@@ -87,7 +87,7 @@ class GaussianModel:
         denom,
         opt_dict,
         self.spacial_lr_scale) = model_args
-        # 
+        # 赋值处理
         self.xyz_grdient_accum = xyz_gradient_accum
         self.denom = denom
         self.optimizer.load_state_dict(opt_dict)
@@ -100,6 +100,60 @@ class GaussianModel:
         """获取高斯旋转参数,应用旋转激活函数"""
         return self.rotation_activation(self._rotation)
     @property
+    def get_xyz(self,):
+        """获取高斯坐标参数"""
+        return self._xyz
+    @property
+    def get_features(self,):
+        """获取高斯特征参数,应用颜色激活函数"""
+        features_dc = self._features_dc
+        features_rest = self._features_rest
+        return torch.cat((features_dc, features_rest), dim=1)
+    @property
+    def get_features_dc(self,):
+        """获取高斯DC特征参数,应用颜色激活函数"""
+        return self._features_dc
+    @property
+    def get_features_rest(self,):
+        """获取高斯REST特征参数,应用颜色激活函数"""
+        return self._features_rest
+    @property
     def get_opacity(self,):
         """获取高斯不透明度参数,应用不透明度激活函数"""
         return self.opacity_activation(self._opacity)
+    @property
+    def get_exposure(self,):
+        """获取高斯曝光参数,应用曝光激活函数"""
+        return self._exposure
+    def get_exposure_from_name(self, image_name):
+        """获取与特定图像名称关联的曝光(exposure)参数矩阵"""
+        if self.pretrained_exposures is None:
+            return self._exposure[self.exposure_mapping[image_name]]
+        else: return self.pretrained_exposures[image_name]
+    def get_covariance(self, scaling_modifier = 1):
+        """计算高斯分布的协方差矩阵
+        scaling_modifier缩放参数缩放因子,默认为1"""
+        self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
+    def oneupSHdegree(self,):
+        """升级球谐函数的度数"""
+        if self.active_sh_degree < self.max_sh_degree:
+            self.active_sh_degree += 1
+    def create_from_pcd(self, pcd:BasicPointCloud, 
+                        cam_infos:int,
+                        spatial_lr_scale:float):
+        """从点云创建高斯模型,点云形状[N, ...]N代表点的数量
+        pcd:BasicPointCloud点云对象,cam_infos:相机信息
+        spatial_lr_scale:空间学习率缩放因子"""
+        self.spacial_lr_scale = spatial_lr_scale
+        fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
+        fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
+        # features的形状为(N, 3, (SH_DEGREE+1)²)
+        features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree+1)**2)).float().cuda()
+        features[:, :3, 0] = fused_color
+        features[:, :3, 1:] = 0.0
+        print(f'初始化的点云数量为{fused_point_cloud.shape[0]}')
+        # 计算初始尺度的参数
+        dist2 = torch.clmap_min()
+
+    
+    
