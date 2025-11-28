@@ -1,3 +1,13 @@
+#
+# Copyright (C) 2023, Inria
+# GRAPHDECO research group, https://team.inria.fr/graphdeco
+# All rights reserved.
+#
+# This software is free for non-commercial, research and evaluation use 
+# under the terms of the LICENSE.md file.
+#
+# For inquiries contact  george.drettakis@inria.fr
+#
 """
 Author: Redal
 Date: 2025-11-02
@@ -39,7 +49,7 @@ def get_expon_lr_func(lr_init:float,
                       lr_delay_steps:int, 
                       lr_delay_mult:int, 
                       max_steps:int):
-    """连续学习率衰减函数
+    """连续学习率衰减函数,带warmup延迟的指数衰减学习率函数
     当step=0时,返回的学习率为lr_init;当step=max_steps时,返回的学习率为lr_final;
     如果lr_delay_steps>0,那么学习率将通过lr_delay_mult的某种平滑函数进行缩放,
     使得优化开始时的初始学习率为lr_init*lr_delay_mult,当steps>lr_delay_steps时,学习率将平缓地恢复到正常学习率

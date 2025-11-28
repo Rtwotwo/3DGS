@@ -1,3 +1,13 @@
+#
+# Copyright (C) 2023, Inria
+# GRAPHDECO research group, https://team.inria.fr/graphdeco
+# All rights reserved.
+#
+# This software is free for non-commercial, research and evaluation use 
+# under the terms of the LICENSE.md file.
+#
+# For inquiries contact  george.drettakis@inria.fr
+#
 """
 Author: Redal
 Date: 2025-11-02
@@ -16,7 +26,8 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 from utils.general_utils import inverse_sigmoid, get_expon_lr_func, build_rotation
-
+try: from diff_gaussian_rasterization import SparseGaussianAdam
+except: pass
 
 class GaussianModel:
     def setup_functions(self):
@@ -152,8 +163,56 @@ class GaussianModel:
         features[:, :3, 0] = fused_color
         features[:, :3, 1:] = 0.0
         print(f'初始化的点云数量为{fused_point_cloud.shape[0]}')
-        # 计算初始尺度的参数
-        dist2 = torch.clmap_min()
+        # 计算初始尺度的参数,使用K近邻算法计算每个点到邻居的距离,以此估算初始尺度(N, 3)
+        dist2 = torch.clmap_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
+        scales = torch.log(torch.sqrt(dist2))[..., None].repeat(1, 3)
+        # 将所有点的初始旋转设置为单位四元数
+        rots = torch.zeros((fused_point_cloud.shape[0], 4), device='cuda')
+        rots[:, 0] = 1
+        # 将所有点的初始不透明度设置为0.1
+        opacities = self.inverse_opacity_activation(0.1*torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device='cuda'))
+        
+        # 将所有参数设置为可学习参数
+        self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        self._features_dc = nn.Parameter(features[:, :, 0:1].transpose(1,2).contiguous().requires_grad_(True))
+        self._features_rest = nn.Parameter(features[:, :, 1:].transpose(1,2).contiguous().requires_grad_(True))
+        self._scaling = nn.Parameter(scales.requires_grad_(True))
+        self._rotation = nn.Parameter(rots.requires_grad_(True))
+        self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device='cuda')
+        self.exposure_mapping = {cam_info.image_name:idx for idx, cam_info in enumerate(cam_infos)}
+        self.pretrained_exposures = None
+        exposures = torch.eye(3, 4, device='cuda')[None].repeat(len(cam_infos), 1, 1)
+        self._exposure = nn.Parameter(exposures.requires_grad_(True))
+    def training_setup(self, training_args):
+        """训练设置,包括优化器,学习率调度,数据集等"""
+        self.percent_dense = training_args.percent_dense
+        self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device='cuda')
+        self.denom = torch.zeros((self.get_xyz.shape[0], 1), device='cuda')
+        # 参数分组+优化器配置
+        l = [{'params': [self._xyz], 'lr': training_args.position_lr_init*self.spatial_lr_scale, 'name':'xyz'}, 
+            {'params': [self._features_dc], 'lr':training_args.feature_lr, 'name':'f_dc'},
+            {'params': [self._features_rest], 'lr':training_args.feature_lr, 'name':'f_rest'},
+            {'params': [self._opacity], 'lr':training_args.opacity_lr, 'name':'opacity'},
+            {'params': [self._scaling], 'lr':training_args.scaling_lr, 'name':'scaling'},
+            {'params': [self._rotation], 'lr':training_args.rotation_lr, 'name':'rotation'},]
+        # 优化器选择
+        if self.optimizer_type == 'default':
+            self.optimizer = torch.optim.Adam(1, lr=0.0, eps=1e-15)
+        elif self.optimizer_type == 'sparse_adam':
+            try: self.optimizer = SparseGaussianAdam(l, lr=0.0, eps=1e-15)
+            except: # 启用稀疏adam需要光栅化器的一个特殊版本
+                self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
+        self.exposure_optimizer = torch.optim.Adam([self._exposure])
+        # 学习率调度器(指数衰减)
+        self.xyz_scheduler_args = get_expon_lr_func(lr_init=training_args.position_lr_init*self.spacial_lr_scale,
+                                                    lr_final=training_args.position_lr_final*self.spacial_lr_scale,
+                                                    lr_delay_mult=training_args.position_lr_delay_mult,
+                                                    max_steps=training_args.position_lr_max_steps)
+        self.exposure_scheduler_args = get_expon_lr_func(training_args.exposure_lr_init, training_args.exposure_lr_final,
+                                                         lr_delay_steps=training_args.exposure_lr_delay_steps,
+                                                         lr_delay_mult=training_args.exposure_lr_delay_mult,
+                                                         max_steps=training_args.iterations)
+    def update_learning_rate(self, iteration):
+        """学习率随着每步更新"""
 
-    
-    
