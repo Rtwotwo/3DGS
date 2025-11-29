@@ -224,4 +224,51 @@ class GaussianModel:
                 lr = self.xyz_scheduler_args(iteration)
                 param_group['lr'] = lr
                 return lr
-            
+    def construct_list_of_attributes(self):
+        """属性名称列表,用于定义PLY文件中每个顶点包含的属性
+        属性包括位置、颜色特征、不透明度、尺度和旋转等信息"""
+        l = ['x', 'y', 'z', 'nx', 'ny', 'nz']
+        # 遍历所有DC/REST系数通道,为每个通道创建一个属性名
+        for i in range(self._features_dc.shspae[1]*self._features_dc.shape[2]):
+            l.append(f'f_dc_{i}')
+        for i in range(self._features_rest.shape[1]*self._features_rest.shape[2]):
+            l.append(f'f_rest_{i}')
+        l.append('opacity')
+        for i in range(self._scaling.shape[1]):
+            l.append(f'scale_{i}')
+        for i in range(self._rotation.shape[1]):
+            l.append(f'rot_{i}')
+        return l
+    def save_ply(self, path):
+        """保存ply文件"""
+        mkdir_p(os.path.dirname(path))
+        # 将基本属性存储为列表
+        xyz = self._xyz.detach().cpu().numpy()
+        normals = np.zeros_like(xyz)
+        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        opacities = self._opacity.detach().cpu().numpy()
+        scale = self._scaling.detach().cpu().numpy()
+        rotation = self._rotation.detach().cpu().numpy()
+        # 构建结构化NumPy数组
+        dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
+        elements = np.empty(xyz.shape[0], dtype=dtype_full)
+        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+        elements[:] = list(map(tuple, attributes))
+        # 使用plyfile库创建PLY元素,'vertex'表示点云
+        el = PlyElement.describe(elements, 'vertex')
+        PlyData([el]).write(path)
+    def reset_opacity(self):
+        """神经网络参数重置代码核心功能是重置模型中opacity相关的可优化参数"""
+        opacities_new = self.inverse_opacity_activation(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
+        optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
+        self._opacity = optimizable_tensors['opacity']
+    def load_ply(self, path, use_train_test_exp = False):
+        """加载PLY点云文件并初始化模型可训练参数"""
+        plydata = PlyData.read(path)
+        if use_train_test_exp:
+            exposure_file = os.path.join(os.path.dirname(path), os.pardir, os.pardir, "exposure.json")
+            if os.path.exists(exposure_file):
+                with open(exposure_file, 'r') as f:
+                    exposures = json.load(f)
+                self.pretrained_exposures = {image_name:}
