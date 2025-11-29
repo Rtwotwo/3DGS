@@ -258,6 +258,22 @@ class GaussianModel:
         # 使用plyfile库创建PLY元素,'vertex'表示点云
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
+    def replace_tensor_to_optimizer(self, tensor, name):
+        """替换优化器optimizer中指定名称的参数组param_group的核心参数,
+        并重置该参数对应的优化器状态,最终返回更新后的可优化参数字典"""
+        optimizable_tensors = {}
+        for group in self.optimizer.param_groups:
+            if group['name'] == name:
+                stored_state = self.optimizer.state.get(group['param'][0], None)
+                stored_state['exp_avg'] = torch.zeros_like(tensor)
+                stored_state['exp_avg_sq'] = torch.zeros_like(tensor)
+
+                del self.optimizer.state[group['param'][0]]
+                group['params'][0] = nn.Parameter(tensor.requires_grad_(True))
+                self.optimizer.state[group['params'][0]] = stored_state
+                optimizable_tensors[group['name']] = group['params'][0] 
+                # 收集替换后的可优化参数,返回字典形式
+        return optimizable_tensors
     def reset_opacity(self):
         """神经网络参数重置代码核心功能是重置模型中opacity相关的可优化参数"""
         opacities_new = self.inverse_opacity_activation(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
@@ -271,4 +287,71 @@ class GaussianModel:
             if os.path.exists(exposure_file):
                 with open(exposure_file, 'r') as f:
                     exposures = json.load(f)
-                self.pretrained_exposures = {image_name:}
+                self.pretrained_exposures = {image_name:torch.FloatTensor(exposures[image_name]).requires_grad_(False).cuda() for image_name in exposures}
+                print(f"预训练的曝光度已加载...")
+            else:
+                print(f"在{exposure_file}中没有找到预训练的曝光度文件...")
+                self.pretrained_exposures = None
+                
+        # PLY文件中存储了点云的每个点的属性,方法按固定字段名提取
+        xyz = np.stack(np.asarray(plydata.elements[0]['x']),
+                        np.asarray(plydata.elements[0]['y']),
+                        np.asarray(plydata.elements[0]['z']))
+        opacities = np.asarray(plydata.elements[0]['opacity'])[..., np.newaxis]
+        features_dc = np.zeros((xyz.shape[0], 3, 1))
+        features_dc[:, 0, 0] = np.asarray(plydata.elements[0]['f_dc_0'])
+        features_dc[:, 1, 0] = np.asarray(plydata.elemnets[0]['f_dc_1'])
+        features_dc[:, 2, 0] = np.asarray(plydata.elements[0]['f_dc_2'])
+
+        extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith('f_rest_')]
+        extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split('_')[-1]))
+        assert len(extra_f_names)==3*(self.max_sh_degree+1) ** 2 -3
+        features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+        for idx, attr_name in enumerate(extra_f_names):
+            features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+        # 将(P，F*SH_coeffs)重塑为(P,F,除DC外的SH_coeffs)
+        features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree +1)**2 -1))
+
+        scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
+        scale_names = sorted(scale_names, key=lambda x:int(x.split('_')[-1]))
+        scales = np.zeros((xyz.shape[0], len(scale_names)))
+        for idx, attr_name in enumerate(scale_names):
+            scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
+        
+        rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith('rot')]
+        rot_names = sorted(rot_names, key=lambda x: int(x.split('_')[-1]))
+        rots = np.zeros(xyz.shape[0], len(rot_names))
+        for idx, attr_name in enumerate(rot_names):
+            rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
+        
+        # 注意features_dc和features_rest和形状需要进行转置
+        self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device='cuda').requires_grad_(True))
+        self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device='cuda').transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device='cuda').transpose(1, 2).contiguous().requires_grad_(True))
+        self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device='cuda').requires_grad_(True))
+        self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device='cuda').requires_grad_(True))
+        self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device='cuda').requires_grad_(True))
+        self.active_sh_degree = self.max_sh_degree
+    def _prune_optimizer(self, mask):
+        """根据掩码mask裁剪模型参数及优化器的状态信息,
+        保留需要的参数并维持优化器训练状态的一致性,
+        最终返回剪枝后的可优化参数字典"""
+        optimizable_tensors = {}
+        for group in self.optimizer.param_groups:
+            # 安全地从字典中获取指定键key对应的值value,若键不存在则返回预设的默认值None
+            stored_state = self.optimizer.state.get(group['params'][0], None)
+            if stored_state is not None:
+                stored_state['exp_avg'] = stored_state['exp_avg'][mask]
+                stored_state['exp_avg_sq'] = stored_state['exp_avg_sq'][mask]
+
+                del self.optimizer.state[group['params'][0]]
+                group['params'][0] = nn.Parameter((group['params'][0][mask].requires_grad_(True)))
+                self.optimizer.state[group['params'][0]] = stored_state
+                optimizable_tensors[group['name']] = group['params'][0]
+            else:
+                # 若存储的状态None未经过训练,直接用mask裁剪参数
+                group['params'][0] = nn.Parameter(group['params'][0][mask].requires_grad_(True))
+                optimizable_tensors[group['name']] = group['params'][0]
+        return optimizable_tensors
+    def prune_points(self, mask):
+        
