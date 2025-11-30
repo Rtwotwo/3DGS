@@ -11,7 +11,9 @@
 """
 Author: Redal
 Date: 2025-11-02
-Todo: Build dataset reader for __init__.py to load scene data
+Todo: 3D Gaussian Splatting项目中用于加载和预处理3D场景数据的核心模块,
+      统一读取不同格式(COLMAP/NeRF Synthetic Blender)的输入数据,构建标
+      准化的场景信息结构SceneInfo,供后续训练和渲染使用
 Homepage: https://github.com/Rtwotwo/3DRepo
 """
 import os
