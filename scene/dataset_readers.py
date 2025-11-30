@@ -54,7 +54,29 @@ class SceneInfo(NamedTuple):
 
 
 def getNerfppNorm(cam_info):
+    """作用是将多视角相机的位置统一归一化到合适的坐标系"""
     def get_center_and_diag(cam_centers):
+        """全局新中心(3维向量),相机分布的最大对角线长度"""
         cam_centers = np.hstack(cam_centers)
         avg_cam_center = np.mean(cam_centers, axis=1, keepdims=True)
-        
+        # 计算所有相机中心的平均位置
+        center = avg_cam_center
+        # 计算每个相机中心到新中心的距离并且取最大值作为对角线长度
+        dist = np.linalg.norm(cam_centers - center, axis=0, keepdims=True)
+        diagonal = np.max(dist)
+        return center.flatten(), diagonal
+    # 提取相机在世界坐标系中的3D中心坐标
+    cam_centers = []
+    for cam in cam_info:
+        W2C = getWorld2View2(cam.R, cam.T)
+        C2W = np.linalg.inv(W2C)
+        cam_centers.append(C2W[:3, 3:4])
+    # 计算归一化参数包括归一化半径radius和归一化平移translate
+    center, diagonal = get_center_and_diag(cam_centers)
+    radius = diagonal * 1.1
+    translate = - center
+    return {'translate': translate, 'radius': radius}
+
+
+def readColmapCameras():
+    """读取colmap的相机参数"""
