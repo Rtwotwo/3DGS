@@ -79,7 +79,7 @@ def PycolmapSFM(args, images_dir:str, database_path:str, points_path:str, dense_
 def main():
     # 创建参数解析器
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", type=str, default="./data/controller.mp4", help="Video path")
+    parser.add_argument("--video_path", type=str, default="./data/watercup.mp4", help="Video path")
     parser.add_argument("--skip_frames", type=int, default=20, help="Skip frames")
     parser.add_argument("--frames_path", type=str,  default="./logs/frames", help="Output path")
     parser.add_argument("--points_path", type=str, default="./logs/points", help="Output path")

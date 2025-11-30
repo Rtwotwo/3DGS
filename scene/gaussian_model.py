@@ -354,4 +354,155 @@ class GaussianModel:
                 optimizable_tensors[group['name']] = group['params'][0]
         return optimizable_tensors
     def prune_points(self, mask):
+        """剪枝筛选3D点云/神经辐射场NeRF类中无效点,根据掩码保留
+        有效点,丢弃无效点,同步更新所有关联的张量和状态变量"""
+        # 无效点掩码mask取反
+        valid_points_mask = ~mask
+        optimizable_tensors = self._prune_optimizer(valid_points_mask)
+        # 模型核心状态的更新
+        self._xyz = optimizable_tensors['xyz']
+        self._features_dc = optimizable_tensors['f_dc']
+        self._features_rest = optimizable_tensors['f_rest']
+        self._opacity = optimizable_tensors['opacity']
+        self._scaling = optimizable_tensors['scaling']
+        self._rotation = optimizable_tensors['rotation']
+        self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
+        self.denom = self.denom[valid_points_mask]
+        self.max_radii2D = self.max_radii2D[valid_points_mask]
+        self.tmp_radii = self.tmp_radii[valid_points_mask]
+    def cat_tensors_to_optimizer(self, tensors_dict):
+        """给优化器管理的参数张量(追加扩展张量),同步更新优化器的状态(如动量,二阶矩)
+        确保扩展后的参数仍能正常参与训练优化"""
+        optimizable_tensors = {}
+        for group in self.optimizer.param_groups:
+            assert len(group['params'])==1, print(f'group的尺寸{len[group['params']]}不为1!')
+            extension_tensor = tensors_dict[group['name']]
+            stored_state = self.optimizer.state.get(group['params'][0], None)
+            if stored_state is not None:
+                stored_state['exp_avg'] = torch.cat((stored_state['exp_avg'], torch.zeros_like(extension_tensor)), dim=0)
+                stored_state['exp_avg_sq'] = torch.cat((stored_state['exp_avg_sq'], torch.zeros_like(extension_tensor)), dim=0)
+                del self.optimizer.state[group['params'][0]]
+                group['params'][0] = nn.Parameter(torch.cat((group['params'][0], extension_tensor), dim=0).requires_grad_(True))
+                self.optimizer.state[group['params'][0]] = stored_state
+                optimizable_tensors[group['name'][0]] = group['params'][0]
+            else:
+                group['params'][0] = nn.Parameter(torch.cat((group['params'][0], extension_tensor), dim=0).requires_grad_(True))
+                optimizable_tensors[group['name'][0]] = group['params'][0]
+        return optimizable_tensors
+    def densification_postfix(self, 
+                              new_xyz,
+                              new_features_dc,
+                              new_features_rest,
+                              new_opacities,
+                              new_scaling,
+                              new_rotation,
+                              new_tmp_radii):
+        """致密化后的状态更新,通过cat_tensors_to_optimizer
+        整合到原模型中,并重置部分辅助变量"""
+        d = {"xyz": new_xyz,
+        "f_dc": new_features_dc,
+        "f_rest": new_features_rest,
+        "opacity": new_opacities,
+        "scaling" : new_scaling,
+        "rotation" : new_rotation}
+        # 更新优化器的状态参数
+        optimizable_tensors = self.cat_tensors_to_optimizer(d)
+        self._xyz = optimizable_tensors['xyz']
+        self._features_dc = optimizable_tensors['f_dc']
+        self._features_rest = optimizable_tensors['f_rest']
+        self._opacity = optimizable_tensors['opacity']
+        self._scaling = optimizable_tensors['scaling']
+        self._rotation = optimizable_tensors['rotation']
+        # 处理临时张量self.tmp_radii
+        self.tmp_radii = torch.cat((self.tmp_radii, new_tmp_radii))
+        self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device='cuda')
+        self.denom = torch.zeros((self.get_xyz.shape[0], 1), device='cuda')
+        self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device='cuda')
+    # 在训练过程中动态地克隆clone,分裂split,剪枝prune高斯点,以自适应地匹配场景复杂度
+    # 主要涉及针对张量更新的操作,状态对齐以及更新操作,实现对高斯点的自适应训练处理
+    def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
+        """对 “梯度满足阈值 + 尺度较大” 的点进行分裂(生成N个新点),
+        实现区域细化(适合将大尺度点拆分为多个小尺度点,填充细节)"""
+        n_init_points = self.get_xyz.shape[0]
+        # 提取的点数需要满足梯度更新的条件
+        padded_grad = torch.zeros((n_init_points), device='cuda')
+        padded_grad[:grads.shape[0]] = grads.squeeze()
+        # 筛选掩码,满足两个条件的点会被选中:梯度值 ≥ 设定阈值;
+        # 点的最大缩放尺度 > 场景范围的一定比例,避免在密集区域过度分裂小点
+        selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
+        selected_pts_mask = torch.logical_and(selected_pts_mask,
+                            torch.max(self.get_scaling, dim=1).values > \
+                                self.percent_dense*scene_extent)
         
+        # 据尺度生成正态分布的随机样本以及构造旋转矩阵
+        stds = self.get_scaling[selected_pts_mask].repeat(N, 1)
+        means = torch.zeros((stds.size(0), 3), device='cuda')
+        samples = torch.normal(mean=means, std=stds)
+        rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N, 1, 1)
+        # 批量复制选中的元素并计算新的参量
+        new_xyz = torch.bmm(rots, samples.unsqueeze(-1)).squeeze(-1) + \
+                  self.get_xyz[selected_pts_mask].repeat(N, 1)
+        new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N, 1) / (0.8*N))
+        new_rotation = self._rotation[selected_pts_mask].repeat(N, 1)
+        new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1, 1)
+        new_features_rest = self._features_rest[selected_pts_mask].repeat(N, 1, 1)
+        new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
+        new_tmp_radii = self.tmp_radii[selected_pts_mask].repeat(N)
+
+        # 将新生成的点添加到模型中optimizer.state
+        self.densification_postfix(new_xyz, new_features_dc,
+                                   new_features_rest, new_opacity,
+                                   new_scaling, new_rotation, 
+                                   new_tmp_radii)
+        # 创建剪枝过滤器,包含原始选中点和新增点的占位符
+        prune_filter = torch.cat((selected_pts_mask, torch.zeros(N*selected_pts_mask.sum(), device='cuda', dtype=bool)))
+        # 移除原始选中的点,原来的点被新的点替代
+        self.prune_points(prune_filter)
+    def densify_and_clone(self, grads, grad_threshold, scene_extent):
+        """对 “梯度满足阈值 + 尺度较小” 的点直接复制,
+        实现简单增密(适合细节区域的精细采样)"""
+        # 类似densify_and_split方法的更新
+        selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
+        selected_pts_mask = torch.logical_and(selected_pts_mask, 
+                            torch.max(self.get_scaling, dim=1).values <= \
+                            self.percent_dense*scene_extent)
+        new_xyz = self._xyz[selected_pts_mask]
+        new_features_dc = self._features_dc[selected_pts_mask]
+        new_features_rest = self._features_rest[selected_pts_mask]
+        new_opacities = self._opacity[selected_pts_mask]
+        new_scaling = self._scaling[selected_pts_mask]
+        new_rotation = self._rotation[selected_pts_mask]
+        new_tmp_radii = self.tmp_radii[selected_pts_mask]
+        self.densification_postfix(new_xyz, new_features_dc,
+                                   new_features_rest, new_opacities,
+                                   new_scaling, new_rotation, 
+                                   new_tmp_radii)
+    def densify_and_prune(self, max_grad, 
+                          min_opacity, 
+                          extent, 
+                          max_screen_size, 
+                          radii):
+        """整合增密与剪枝,集中调用densify_and_split和densify_and_prune
+        统一调用增密逻辑,再执行剪枝,完成 “增密有效点,删除无效点” 的完整流程"""
+        grads = self.xyz_gradient_accum / self.denom
+        grads[grads.isnan()] = 0.0
+        # 1.执行增密算法
+        self.tmp_radii = radii
+        self.densify_and_clone(grads, max_grad, extent)
+        self.densify_and_split(grads, max_grad, extent)
+        # 2.执行剪枝算法
+        prune_mask = (self.get_opacity < min_opacity).squeeze()
+        if max_screen_size:
+            big_points_vs = self.max_radii2D > max_screen_size
+            # 标记在世界空间中过大的点
+            big_points_ws = self.get_scaling.max(dim=1).values > 0.1*extent
+        self.prune_points(prune_mask)
+        # 处理剩余变量
+        tmp_radii = self.tmp_radii
+        self.tmp_radii = None
+    def add_densification_stats(self, viewspace_point_tensor, update_filter):
+        """记录每个采样点的梯度强度"""
+        self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True)
+        self.denom[update_filter] += 1
+
+    
