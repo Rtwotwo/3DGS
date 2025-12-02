@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-18
 Todo: Image quality assessment and loss function calculation,
       containing SSIM, L1, L2, and FusedSSIM metrics

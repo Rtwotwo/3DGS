@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-02
 Todo: Build dataset reader for gaussian_model.py to create gaussian model
 Homepage: https://github.com/Rtwotwo/3DRepo
@@ -375,7 +375,7 @@ class GaussianModel:
         确保扩展后的参数仍能正常参与训练优化"""
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
-            assert len(group['params'])==1, print(f'group的尺寸{len[group['params']]}不为1!')
+            assert len(group['params'])==1, f"group的尺寸{len(group['params'])}不为1!"
             extension_tensor = tensors_dict[group['name']]
             stored_state = self.optimizer.state.get(group['params'][0], None)
             if stored_state is not None:

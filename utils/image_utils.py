@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-19
 Todo: Compute mse and psnr between two images
 Homepage: https://github.com/Rtwotwo/3DRepo

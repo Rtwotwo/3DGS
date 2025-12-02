@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-02
 Todo: Build dataset reader for general_utils.py to create gaussian model
 Homepage: https://github.com/Rtwotwo/3DRepo

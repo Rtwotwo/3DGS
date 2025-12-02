@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-02
 Todo: Learn how to build scene folder from GRAPHDECO 
       research group https://team.inria.fr/graphdeco

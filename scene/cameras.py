@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-22
 Todo: 
 Homepage: https://github.com/Rtwotwo/3DRepo

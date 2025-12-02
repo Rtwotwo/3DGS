@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-02
 Todo: 3D Gaussian Splatting项目中用于加载和预处理3D场景数据的核心模块,
       统一读取不同格式(COLMAP/NeRF Synthetic Blender)的输入数据,构建标

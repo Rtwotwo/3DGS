@@ -9,7 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 """
-Author: Redal
+Modifications by: Redal
 Date: 2025-11-02
 Todo: To realize spherical harmonics
 Homepage: https://github.com/Rtwotwo/3DRepo
