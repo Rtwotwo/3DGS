@@ -102,15 +102,15 @@ def read_points3D_text(path_to_model_file):
         rgbs = np.empty((num_points, 3))
         errors = np.empty((num_points, 1))
         for p_id in range(num_points):
+            # Q点的ID,ddd点的三维坐标,BBB点的颜色, d点误差
             binary_point_line_properties = read_next_bytes(fid, 
                     num_bytes=43, format_char_sequence="QdddBBBd")
             xyz = np.array(binary_point_line_properties[1:4])
             rgb = np.array(binary_point_line_properties[4:7])
             error = np.array(binary_point_line_properties[7])
-
+            # 读取跟踪信息:长度(无符号长整型),跟踪的元素-格式为ii的重复序列,表示图像ID和2D点索引
             track_length = read_next_bytes(fid, num_bytes=8, format_char_sequence="Q")[0]
             track_elems = read_next_bytes(fid, num_bytes=8 * track_length, format_char_sequence="ii"*track_length)
-            
             xyzs[p_id] = xyz
             rgbs[p_id] = rgb
             errors[p_id] = error
@@ -118,7 +118,16 @@ def read_points3D_text(path_to_model_file):
                         
 
 def read_intrinsics_text(path):
-    """"""
-
+    """来自https://github.com/colmap/colmap/blob/dev/scripts/python/read_write_model.py
+    读取相机的内参信息,并将其解析为一个字典结构,每个相机的内参信息包括相机ID、模型类型、分辨率以及相机参数"""
+    cameras = {}
+    with open(path, "r") as fid:
+        while True:
+            line = fid.readline()
+            if not line: break
+            line = line.strip()
+            if len(line)>0 and line[0] != "#":
+                elems = line.split()
+            
 
 
