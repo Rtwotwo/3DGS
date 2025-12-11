@@ -12,12 +12,6 @@
 	url = https://github.com/colmap/colmap.git
 
 
-[submodule "clone/vggt"]
-	path = clone/vggt
-	url = https://github.com/facebookresearch/vggt.git
-[submodule "clone/SegmentAnything3D"]
-	path = clone/SegmentAnything3D
-	url = https://github.com/Pointcept/SegmentAnything3D.git
 [submodule "clone/Scaffold-GS"]
 	path = clone/Scaffold-GS
 	url = https://github.com/city-super/Scaffold-GS.git
@@ -27,3 +21,21 @@
 [submodule "clone/GaussianArt"]
 	path = clone/GaussianArt
 	url = https://github.com/shenlc19/GaussianArt.git
+[submodule "clone/gaussian-splatting"]
+	path = clone/gaussian-splatting
+	url = https://github.com/graphdeco-inria/gaussian-splatting.git
+[submodule "clone/mip-splatting"]
+	path = clone/mip-splatting
+	url = https://github.com/autonomousvision/mip-splatting.git
+[submodule "clone/gaussian-opacity-fields"]
+	path = clone/gaussian-opacity-fields
+	url = https://github.com/autonomousvision/gaussian-opacity-fields.git
+[submodule "clone/2d-gaussian-splatting"]
+	path = clone/2d-gaussian-splatting
+	url = https://github.com/hbb1/2d-gaussian-splatting.git
+[submodule "clone/3dgrut"]
+	path = clone/3dgrut
+	url = https://github.com/nv-tlabs/3dgrut.git
+[submodule "clone/Analytic-Splatting"]
+	path = clone/Analytic-Splatting
+	url = https://github.com/lzhnb/Analytic-Splatting.git
