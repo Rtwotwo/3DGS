@@ -87,7 +87,7 @@ def main():
     parser.add_argument("--database_path", type=str, default="./logs/database.db", help="Database path")
     args = parser.parse_args()
     # 进行pycolmap三维重建任务
-    VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
+    # VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
     PycolmapSFM(args, images_dir=args.frames_path, database_path=args.database_path, dense_path=args.dense_path, points_path=args.points_path)
 
 
