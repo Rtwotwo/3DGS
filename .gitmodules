@@ -39,3 +39,9 @@
 [submodule "clone/Analytic-Splatting"]
 	path = clone/Analytic-Splatting
 	url = https://github.com/lzhnb/Analytic-Splatting.git
+[submodule "clone/L2G-NeRF"]
+	path = clone/L2G-NeRF
+	url = https://github.com/rover-xingyu/L2G-NeRF.git
+[submodule "clone/NoPoSplat"]
+	path = clone/NoPoSplat
+	url = https://github.com/cvg/NoPoSplat.git
