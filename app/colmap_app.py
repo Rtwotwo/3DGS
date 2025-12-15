@@ -79,16 +79,16 @@ def PycolmapSFM(args, images_dir:str, database_path:str, points_path:str, dense_
 def main():
     # 创建参数解析器
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", type=str, default="./data/watercup.mp4", help="Video path")
-    parser.add_argument("--skip_frames", type=int, default=20, help="Skip frames")
+    parser.add_argument("--video_path", type=str, default="./data/mouth_2.mp4", help="Video path")
+    parser.add_argument("--skip_frames", type=int, default=2, help="Skip frames")
     parser.add_argument("--frames_path", type=str,  default="./logs/frames", help="Output path")
     parser.add_argument("--points_path", type=str, default="./logs/points", help="Output path")
     parser.add_argument("--dense_path", type=str, default="./logs/dense", help="Output path")
     parser.add_argument("--database_path", type=str, default="./logs/database.db", help="Database path")
     args = parser.parse_args()
     # 进行pycolmap三维重建任务
-    # VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
-    PycolmapSFM(args, images_dir=args.frames_path, database_path=args.database_path, dense_path=args.dense_path, points_path=args.points_path)
+    VideotoFrames(video_path=args.video_path, output_path=args.frames_path, skip_frames=args.skip_frames)
+    # PycolmapSFM(args, images_dir=args.frames_path, database_path=args.database_path, dense_path=args.dense_path, points_path=args.points_path)
 
 
 if __name__ == "__main__":
