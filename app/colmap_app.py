@@ -24,6 +24,7 @@ def VideotoFrames(video_path:str, output_path:str, skip_frames:int=1)->None:
         if ret:
             if count_num % skip_frames==0:
                 file_path = os.path.join(output_path, f"{count_num//skip_frames}.jpg")
+                cv2.flip(frame, 0)
                 cv2.imwrite(file_path, frame)
                 print(f"已保存图片至{file_path}")
         else: break
@@ -79,7 +80,7 @@ def PycolmapSFM(args, images_dir:str, database_path:str, points_path:str, dense_
 def main():
     # 创建参数解析器
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", type=str, default="./data/mouth_2.mp4", help="Video path")
+    parser.add_argument("--video_path", type=str, default="./data/mouth_13.mp4", help="Video path")
     parser.add_argument("--skip_frames", type=int, default=2, help="Skip frames")
     parser.add_argument("--frames_path", type=str,  default="./logs/frames", help="Output path")
     parser.add_argument("--points_path", type=str, default="./logs/points", help="Output path")

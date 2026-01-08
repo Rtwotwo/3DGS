@@ -80,5 +80,10 @@ def getNerfppNorm(cam_info):
     return {'translate': translate, 'radius': radius}
 
 
-def readColmapCameras():
+def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params,
+                      images_folder, depths_folder, test_cam_names_list):
     """读取colmap的相机参数"""
+    cam_infos = []
+    for idx, key in enumerate(cam_extrinsics):
+        sys.stdout.write('\r')
+        
