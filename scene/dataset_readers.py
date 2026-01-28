@@ -82,8 +82,61 @@ def getNerfppNorm(cam_info):
 
 def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params,
                       images_folder, depths_folder, test_cam_names_list):
-    """读取colmap的相机参数"""
+    """读取colmap的相机参数: 返回相机参数的各类设置参数类的集合"""                  
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
-        
+        # 打印详细的输出信息
+        sys.stdout.write(f'[INFO] Reading camera {idx+1}/{len(cam_extrinsics)}')
+        sys.stdout.flush()
+        # 获取相机的参数信息设置
+        extr = cam_extrinsics[key]
+        intr = cam_intrinsics[extr.camera_id]
+        height = intr.height
+        width = intr.width
+        uid = intr.id
+        R = np.transpose(qvec2rotmat(extr.qvec))
+        T = np.array(extr.tvec)
+        # 获取相机内参的参数类型进行判断
+        if intr.model=='SIMPLE_PINHOLE':
+            focal_length_x = intr.params[0]
+            FovY = focal2fov(focal_length_x, height)
+            FovX = focal2fov(focal_length_x, width)
+        elif intr.model=='PINHOLE':
+            focal_length_x = intr.params[0]
+            focal_length_y = intr.params[1]
+            FovY = focal2fov(focal_length_y, height)
+            FovX = focal2fov(focal_length_x, width)
+        else: assert False, f'[ERROR] 目前仅能支持PINHOLE和SIMPLE_PINHOLE内参类型'
+        # 获取相机参数信息information
+        n_remove = len(extr.name.split('.')[-1]) + 1
+        depth_params = None
+        if depths_params is not None:
+            try: depth_params = depths_params[extr.name[:-n_remove]]
+            except: print(f'[INFO] Keys:{key}, Not Found in Depth Params')
+        # 获取图像的信息
+        image_path = os.path.join(images_folder, extr.name)
+        image_name = extr.name
+        depth_path = os.path.join(depths_folder, f'{extr.name[:-n_remove]}.png') if depths_folder != "" else ""
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image_path=image_path,
+                              image_name=image_name, width=width, height=height)
+        cam_infos.append(cam_info)
+    sys.stdout.write('\n')
+    return cam_infos
+
+
+def fetchPly(path):
+    """从PLY文件中读取点云数据并返回基础点云对象
+    BasicPointCloud:包含点位置、颜色和法线的基础点云对象"""
+    # 获取PLY的文件的数据信息
+    plydata = PlyData.read(path)
+    vertices = plydata['vertex']
+    # 读取顶点坐标/颜色/法向量并转换numpy数据格式
+    positions = np.vstack([vertices['x'], vertices['y'], vertices['z']])
+    colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']])
+    normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']])
+    return BasicPointCloud(points=positions, colors=colors, normals=normals)
+
+
+def readColmapSceneInfo(path, images, depths, eval, train_test_exp, llffhold=8):
+    """"""
